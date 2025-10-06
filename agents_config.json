@@ -39,5 +39,18 @@
     "rollback_enabled": true,
     "rollback_window_hours": 2
   },
+  "prune_workspaces": {
+    "enabled": true,
+    "default_quiet_hours_duration": 8,
+    "timezone": "UTC",
+    "include_organizations": [],
+    "exclude_organizations": [],
+    "include_groups": [],
+    "exclude_groups": [],
+    "include_users": [],
+    "exclude_users": ["admin", "on-call-engineer"],
+    "include_templates": [],
+    "exclude_templates": ["production-template-id", "critical-service-template-id"]
+  },
   "dry_run": false
 }

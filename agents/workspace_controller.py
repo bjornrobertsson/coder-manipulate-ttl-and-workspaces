@@ -180,23 +180,47 @@ class WorkspaceController:
         
         Args:
             workspace_id: Workspace ID to stop
-            reason: Reason for stopping (for logging)
+            reason: Reason for stopping (for logging only, not sent to API)
             
         Returns:
             True if successful, False otherwise
         """
         try:
             # Create a stop build for the workspace
+            # Note: The reason field seems to have validation constraints in the API
+            # so we'll try different approaches
+            
+            # First try with just the transition
             build_data = {
-                "transition": "stop",
-                "reason": reason
+                "transition": "stop"
             }
             
             endpoint = f"/api/v2/workspaces/{workspace_id}/builds"
-            response = self._make_request('POST', endpoint, build_data)
             
-            print(f"Successfully initiated stop for workspace {workspace_id}: {reason}")
-            return True
+            try:
+                response = self._make_request('POST', endpoint, build_data)
+                print(f"Successfully initiated stop for workspace {workspace_id}: {reason}")
+                return True
+            except Exception as api_error:
+                # If that fails, try with a standard reason
+                if "reason" in str(api_error).lower():
+                    # Try with common valid reasons
+                    valid_reasons = ["initiator", "autostart", "autostop", "shutdown"]
+                    
+                    for valid_reason in valid_reasons:
+                        try:
+                            build_data_with_reason = {
+                                "transition": "stop",
+                                "reason": valid_reason
+                            }
+                            response = self._make_request('POST', endpoint, build_data_with_reason)
+                            print(f"Successfully initiated stop for workspace {workspace_id}: {reason} (API reason: {valid_reason})")
+                            return True
+                        except Exception:
+                            continue
+                
+                # If all attempts fail, re-raise the original error
+                raise api_error
             
         except Exception as e:
             print(f"Failed to stop workspace {workspace_id}: {e}")
@@ -464,6 +488,148 @@ class WorkspaceController:
             print("No user-specific quiet hours schedule configured")
         
         print("\n" + "=" * 80)
+    
+    def get_organizations(self) -> List[Dict]:
+        """
+        Get all organizations
+        
+        Returns:
+            List of organization dictionaries
+        """
+        try:
+            response = self._make_request('GET', '/api/v2/organizations')
+            return response if isinstance(response, list) else []
+        except Exception as e:
+            print(f"Error fetching organizations: {e}")
+            return []
+    
+    def get_groups(self, organization_id: str = None) -> List[Dict]:
+        """
+        Get groups, optionally filtered by organization
+        
+        Args:
+            organization_id: Optional organization ID to filter by
+            
+        Returns:
+            List of group dictionaries
+        """
+        try:
+            if organization_id:
+                endpoint = f"/api/v2/organizations/{organization_id}/groups"
+            else:
+                endpoint = "/api/v2/groups"
+            
+            response = self._make_request('GET', endpoint)
+            return response if isinstance(response, list) else []
+        except Exception as e:
+            print(f"Error fetching groups: {e}")
+            return []
+    
+    def get_users(self, organization_id: str = None) -> List[Dict]:
+        """
+        Get users, optionally filtered by organization
+        
+        Args:
+            organization_id: Optional organization ID to filter by
+            
+        Returns:
+            List of user dictionaries
+        """
+        try:
+            if organization_id:
+                endpoint = f"/api/v2/organizations/{organization_id}/members"
+            else:
+                endpoint = "/api/v2/users"
+            
+            response = self._make_request('GET', endpoint)
+            
+            # Handle different response formats
+            if isinstance(response, dict):
+                return response.get('users', [])
+            elif isinstance(response, list):
+                return response
+            else:
+                return []
+        except Exception as e:
+            print(f"Error fetching users: {e}")
+            return []
+    
+    def get_group_members(self, group_id: str) -> List[Dict]:
+        """
+        Get members of a specific group
+        
+        Args:
+            group_id: Group ID
+            
+        Returns:
+            List of user dictionaries in the group
+        """
+        try:
+            endpoint = f"/api/v2/groups/{group_id}/members"
+            response = self._make_request('GET', endpoint)
+            return response if isinstance(response, list) else []
+        except Exception as e:
+            print(f"Error fetching group members for {group_id}: {e}")
+            return []
+    
+    def get_user_organizations(self, user_id: str) -> List[Dict]:
+        """
+        Get organizations that a user belongs to
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            List of organization dictionaries
+        """
+        try:
+            # Get user details which should include organization info
+            endpoint = f"/api/v2/users/{user_id}"
+            response = self._make_request('GET', endpoint)
+            
+            # Extract organization IDs from user data
+            org_ids = response.get('organization_ids', [])
+            
+            # Get full organization details
+            organizations = []
+            all_orgs = self.get_organizations()
+            
+            for org in all_orgs:
+                if org.get('id') in org_ids:
+                    organizations.append(org)
+            
+            return organizations
+        except Exception as e:
+            print(f"Error fetching user organizations for {user_id}: {e}")
+            return []
+    
+    def get_user_groups(self, user_id: str) -> List[Dict]:
+        """
+        Get groups that a user belongs to
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            List of group dictionaries
+        """
+        try:
+            # This might need to be implemented differently depending on Coder API
+            # For now, we'll check all groups and see which ones the user is in
+            all_groups = self.get_groups()
+            user_groups = []
+            
+            for group in all_groups:
+                group_members = self.get_group_members(group.get('id', ''))
+                for member in group_members:
+                    if member.get('id') == user_id:
+                        user_groups.append(group)
+                        break
+            
+            return user_groups
+        except Exception as e:
+            print(f"Error fetching user groups for {user_id}: {e}")
+            return []
     
     def validate_connection(self) -> bool:
         """

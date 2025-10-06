@@ -81,6 +81,42 @@ python enterprise_quiet_hours.py --json
 python enterprise_quiet_hours.py --user "username"
 ```
 
+### 5. Prune Workspaces Agent (`prune_workspaces.py`)
+Identify and cleanup workspaces within user-specific quiet hours periods with comprehensive filtering by organizations, groups, users, and templates.
+
+```bash
+# Basic usage - current user's workspaces
+python prune_workspaces.py
+
+# Check all users' workspaces
+python prune_workspaces.py --all
+
+# Organization-based filtering
+python prune_workspaces.py --include-org "engineering" --exclude-org "production"
+
+# Group-based filtering
+python prune_workspaces.py --include-group "developers" --exclude-group "on-call"
+
+# User-based filtering
+python prune_workspaces.py --include-user "john.doe" --exclude-user "admin"
+
+# Template-based filtering
+python prune_workspaces.py --include-template "python-dev" --exclude-template "production-api"
+
+# Combined filtering with cleanup
+python prune_workspaces.py \\
+  --include-org "engineering" \\
+  --exclude-group "administrators" \\
+  --exclude-template "critical-service" \\
+  --cleanup --dry-run
+
+# Custom quiet hours duration
+python prune_workspaces.py --duration 12 --cleanup
+
+# JSON output for automation
+python prune_workspaces.py --all --json
+```
+
 ## Configuration
 
 Edit `agents_config.json` to customize agent behavior:
