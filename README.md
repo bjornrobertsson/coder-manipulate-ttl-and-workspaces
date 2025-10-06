@@ -34,8 +34,8 @@ cd coder-manipulate-ttl-and-workspaces
 pip install -r requirements.txt
 
 # Set environment variables
-export CODER_URL=\"https://your-coder-instance.com\"
-export CODER_TOKEN=\"your-api-token\"
+export CODER_URL="https://your-coder-instance.com"
+export CODER_TOKEN="your-api-token"
 
 # Test connection
 python agents/workspace_controller.py
@@ -242,32 +242,32 @@ The agents provide detailed categorization of all workspaces:
 ### Basic Configuration (`agents_config.json`)
 ```json
 {
-  \"quiet_hours\": {
-    \"enabled\": true,
+  "quiet_hours": {
+    "enabled": true,
     "start_time": "18:00",
     "end_time": "09:00",
-    \"timezone\": \"UTC\",
-    \"grace_period_hours\": 1,
-    \"excluded_users\": [\"admin\"],
-    \"excluded_templates\": [\"production-template-id\"]
+    "timezone": "UTC",
+    "grace_period_hours": 1,
+    "excluded_users": ["admin"],
+    "excluded_templates": ["production-template-id"]
   },
-  \"prune_workspaces\": {
-    \"enabled\": true,
-    \"default_quiet_hours_duration\": 8,
-    \"timezone\": \"UTC\",
-    \"include_organizations\": [],
-    \"exclude_organizations\": [],
-    \"include_groups\": [],
-    \"exclude_groups\": [],
-    \"include_users\": [],
-    \"exclude_users\": [\"admin\", \"on-call-engineer\"],
-    \"include_templates\": [],
-    \"exclude_templates\": [\"production-template-id\"]
+  "prune_workspaces": {
+    "enabled": true,
+    "default_quiet_hours_duration": 8,
+    "timezone": "UTC",
+    "include_organizations": [],
+    "exclude_organizations": [],
+    "include_groups": [],
+    "exclude_groups": [],
+    "include_users": [],
+    "exclude_users": ["admin", "on-call-engineer"],
+    "include_templates": [],
+    "exclude_templates": ["production-template-id"]
   },
-  \"ttl_monitor\": {
-    \"enabled\": true,
-    \"warning_threshold_hours\": 1,
-    \"check_interval_minutes\": 15
+  "ttl_monitor": {
+    "enabled": true,
+    "warning_threshold_hours": 1,
+    "check_interval_minutes": 15
   }
 }
 ```
@@ -311,11 +311,11 @@ python agents/prune_workspaces.py --duration 16 --cleanup
 
 ### Environment Variables
 ```bash
-export CODER_URL=\"https://your-coder-instance.com\"
-export CODER_TOKEN=\"your-api-token\"
+export CODER_URL="https://your-coder-instance.com"
+export CODER_TOKEN="your-api-token"
 export QUIET_HOURS_START="18:00"
 export QUIET_HOURS_END="09:00"
-export QUIET_HOURS_TIMEZONE=\"UTC\"
+export QUIET_HOURS_TIMEZONE="UTC"
 ```
 
 ## 📅 **Scheduling**
