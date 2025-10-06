@@ -1,0 +1,43 @@
+{
+  "quiet_hours": {
+    "enabled": true,
+    "start_time": "13:32",
+    "end_time": "08:00",
+    "timezone": "Europe/London",
+    "grace_period_hours": 1,
+    "excluded_users": ["admin", "on-call-engineer"],
+    "excluded_templates": ["production-template-id", "critical-service-template-id"]
+  },
+  "ttl_monitor": {
+    "enabled": true,
+    "warning_threshold_hours": 1,
+    "check_interval_minutes": 15,
+    "report_expired": true,
+    "report_expiring_soon": true
+  },
+  "autostop": {
+    "enabled": true,
+    "batch_size": 10,
+    "notification_enabled": true,
+    "max_concurrent_stops": 5
+  },
+  "notifications": {
+    "email_enabled": false,
+    "slack_webhook": "",
+    "teams_webhook": "",
+    "notification_threshold_minutes": 30
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "agents.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  },
+  "safety": {
+    "max_stops_per_minute": 10,
+    "emergency_stop_enabled": true,
+    "rollback_enabled": true,
+    "rollback_window_hours": 2
+  },
+  "dry_run": false
+}

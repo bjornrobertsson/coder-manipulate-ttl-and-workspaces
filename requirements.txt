@@ -1,0 +1,32 @@
+# Core dependencies for Coder Workspace Management Agents
+# Based on coder-audit-simple project requirements
+
+# HTTP requests
+requests>=2.28.0
+
+# Table formatting (from original project)
+tabulate>=0.9.0
+
+# Timezone handling
+pytz>=2022.1
+
+# JSON handling (built-in, but listed for clarity)
+# json - built-in
+
+# Date/time handling (built-in, but listed for clarity)  
+# datetime - built-in
+
+# Optional: Enhanced logging
+colorlog>=6.7.0
+
+# Optional: Configuration validation
+jsonschema>=4.17.0
+
+# Optional: Async support for future enhancements
+aiohttp>=3.8.0
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+# black>=22.0.0
+# flake8>=5.0.0
