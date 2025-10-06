@@ -187,12 +187,14 @@ class TTLMonitorAgent:
         
         return analysis
     
-    def get_ttl_compliance_report(self, user_filter: str = None) -> Dict:
+    def get_ttl_compliance_report(self, user_filter: str = None, all_users: bool = False, all_orgs: bool = False) -> Dict:
         """
         Generate comprehensive TTL compliance report
         
         Args:
-            user_filter: Optional username to filter by
+            user_filter: Optional username to filter by (overrides all_users)
+            all_users: Whether to include all users (default: current user only)
+            all_orgs: Whether to include workspaces from all organizations
             
         Returns:
             Compliance report dictionary
@@ -200,10 +202,24 @@ class TTLMonitorAgent:
         # Get all workspaces
         all_workspaces = self.controller.get_workspaces()
         
-        # Filter by user if specified
+        # Determine user filtering
         if user_filter:
+            # Specific user requested
             all_workspaces = [ws for ws in all_workspaces 
                             if ws.get('owner_name') == user_filter]
+        elif not all_users:
+            # Default: current user only
+            current_user = self.controller.get_current_user()
+            if current_user:
+                current_username = current_user.get('username')
+                all_workspaces = [ws for ws in all_workspaces 
+                                if ws.get('owner_name') == current_username]
+            else:
+                print("Warning: Could not determine current user, showing all workspaces")
+        # If all_users is True, we keep all workspaces (no filtering by user)
+        
+        # Note: all_orgs parameter is for future organization-level filtering
+        # Currently, the API returns all accessible workspaces regardless
         
         # Analyze each workspace
         analyses = []
@@ -242,22 +258,40 @@ class TTLMonitorAgent:
         return report
     
     def print_compliance_report(self, user_filter: str = None, 
-                              show_all: bool = False):
+                              show_all: bool = False, all_users: bool = False, all_orgs: bool = False):
         """
         Print formatted TTL compliance report
         
         Args:
             user_filter: Optional username to filter by
             show_all: Whether to show all workspaces or just problematic ones
+            all_users: Whether to include all users (default: current user only)
+            all_orgs: Whether to include workspaces from all organizations
         """
-        report = self.get_ttl_compliance_report(user_filter)
+        report = self.get_ttl_compliance_report(user_filter, all_users, all_orgs)
         
         print("=" * 80)
         print("TTL COMPLIANCE REPORT")
         print("=" * 80)
         print(f"Generated: {self._format_date(report['timestamp'])}")
+        
+        # Show scope information
+        scope_info = []
         if user_filter:
-            print(f"User Filter: {user_filter}")
+            scope_info.append(f"User: {user_filter}")
+        elif all_users:
+            scope_info.append("Users: All Users")
+        else:
+            current_user = self.controller.get_current_user()
+            if current_user:
+                scope_info.append(f"User: {current_user.get('username')} (current)")
+        
+        if all_orgs:
+            scope_info.append("Organizations: All")
+        
+        if scope_info:
+            print(f"Scope: {', '.join(scope_info)}")
+        
         print(f"Total Workspaces: {report['total_workspaces']}")
         print()
         
@@ -325,6 +359,30 @@ class TTLMonitorAgent:
             
             headers = ["Owner", "Workspace", "TTL", "Time Remaining", "Status"]
             print(tabulate(table_data, headers=headers, tablefmt="simple"))
+            print()
+        
+        # Stopped workspaces (if requested)
+        if show_all and report['workspaces']['stopped']:
+            print("⚫ STOPPED WORKSPACES:")
+            print("-" * 80)
+            
+            # Show first 20 stopped workspaces to avoid overwhelming output
+            stopped_to_show = report['workspaces']['stopped'][:20]
+            table_data = []
+            for ws in stopped_to_show:
+                table_data.append([
+                    ws['owner'],
+                    ws['name'],
+                    ws['ttl_formatted'],
+                    ws['status'],
+                    self._format_date(ws['updated_at'])
+                ])
+            
+            headers = ["Owner", "Workspace", "TTL", "Status", "Last Updated"]
+            print(tabulate(table_data, headers=headers, tablefmt="simple"))
+            
+            if len(report['workspaces']['stopped']) > 20:
+                print(f"... and {len(report['workspaces']['stopped']) - 20} more stopped workspaces")
             print()
         
         # Recommendations
@@ -413,6 +471,12 @@ def main():
                        help="Custom threshold in hours for expiring workspaces")
     parser.add_argument("--show-all", action="store_true",
                        help="Show all workspaces, not just problematic ones")
+    parser.add_argument("--all-users", action="store_true",
+                       help="Include workspaces from all users (default: current user only)")
+    parser.add_argument("--all-orgs", action="store_true",
+                       help="Include workspaces from all organizations")
+    parser.add_argument("--all", action="store_true",
+                       help="Shorthand for --all-users --all-orgs")
     parser.add_argument("--monitor", action="store_true",
                        help="Run continuous monitoring")
     parser.add_argument("--interval", type=int,
@@ -429,15 +493,19 @@ def main():
             print("Error: Could not connect to Coder API")
             sys.exit(1)
         
+        # Handle --all shorthand
+        all_users = args.all_users or args.all
+        all_orgs = args.all_orgs or args.all
+        
         # Execute requested action
         if args.monitor:
             agent.monitor_continuous(args.interval)
         elif args.json:
-            report = agent.get_ttl_compliance_report(args.user)
+            report = agent.get_ttl_compliance_report(args.user, all_users, all_orgs)
             print(json.dumps(report, indent=2))
         else:
             # Default: print compliance report
-            agent.print_compliance_report(args.user, args.show_all)
+            agent.print_compliance_report(args.user, args.show_all, all_users, all_orgs)
     
     except Exception as e:
         print(f"Error: {e}")
