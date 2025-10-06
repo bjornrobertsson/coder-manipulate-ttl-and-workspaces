@@ -8,14 +8,17 @@ The Prune Workspaces Agent identifies and manages workspaces that are within the
 
 **Quiet Hours Period**: From the user's configured quiet hours start time until **start time + duration hours**
 
-- **Default Duration**: 8 hours (configurable via `--duration` parameter)
+- **Default Duration**: 8 hours baseline (configurable via `--duration` parameter)
 - **User-Specific**: Each user's quiet hours are determined by their individual enterprise schedule
 - **Timezone Aware**: Respects each user's configured timezone
+- **Activity Aware**: Actual stopping may be delayed based on workspace activity detection
+- **Flexible Enforcement**: Baseline duration may be extended if workspace shows ongoing activity
 
 ### Example:
 - User's quiet hours start: `18:00 UTC` (6 PM)
-- Duration: `8 hours` (default)
+- Duration: `8 hours baseline` (default)
 - **Quiet hours period**: `18:00 - 02:00 next day UTC`
+- **Actual behavior**: Workspace eligible for stopping at 02:00, but may be extended if showing activity
 
 ## 🚀 **Usage Examples**
 
@@ -147,7 +150,7 @@ WebApp       react-template        running   2025-09-15
 | `--json` | JSON output format | `--json` |
 | `--config FILE` | Custom config file | `--config my_config.json` |
 
-## 🔍 **How It Works**
+## 🔧 **How It Works**
 
 ### **1. User Discovery**
 - **Default**: Current user only
@@ -156,9 +159,9 @@ WebApp       react-template        running   2025-09-15
 
 ### **2. Quiet Hours Detection**
 1. Fetch user's enterprise quiet hours schedule via API
-2. Parse cron schedule: `CRON_TZ=Europe/London 32 13 * * *`
+2. Parse cron schedule: `CRON_TZ=UTC 0 18 * * *`
 3. Extract start time (`18:00`) and timezone (`UTC`)
-4. Calculate current quiet hours period based on duration
+4. Calculate current quiet hours period based on baseline duration
 
 ### **3. Workspace Analysis**
 1. Get all workspaces for target users
@@ -166,10 +169,17 @@ WebApp       react-template        running   2025-09-15
 3. Check if current time falls within user's quiet hours period
 4. Return matching workspaces with quiet hours metadata
 
-### **4. Cleanup (Optional)**
-1. Filter to only running workspaces
-2. Stop each workspace using Coder API
-3. Report success/failure for each operation
+### **4. Activity & Conflict Detection**
+1. Check workspace activity levels and recent usage
+2. Evaluate user's autostop settings and TTL configuration
+3. Determine if workspace should be stopped immediately or extended
+4. Apply conflict resolution priority (autostop > TTL > activity > quiet hours)
+
+### **5. Cleanup (Optional)**
+1. Filter to only running workspaces eligible for stopping
+2. Respect activity detection and user preferences
+3. Stop each workspace using Coder API with appropriate reasoning
+4. Report success/failure for each operation with extension details
 
 ## 🛡️ **Safety Features**
 

@@ -118,8 +118,12 @@ User's Quiet Hours: 18:00 (6 PM) Local Time
 
 Workspace Lifecycle:
 ├─ 18:00: Quiet hours period begins (end of business day)
-├─ 18:00-02:00: Workspace allowed to run (8-hour lifetime)
-└─ 02:00: Workspace eligible for stopping
+├─ 18:00-02:00: Workspace allowed to run (8-hour baseline lifetime)
+└─ 02:00: Workspace eligible for stopping*
+
+* Note: Actual stopping may be delayed if workspace shows recent activity
+  or if idle detection indicates ongoing work. The 8-hour period is a
+  baseline, not a hard cutoff.
 ```
 
 #### **Edge Case Handling**
@@ -153,22 +157,53 @@ The system includes intelligent edge case handling:
 | **Enterprise Integration** | Basic | Full enterprise schedule sync |
 | **Use Case** | Organization-wide policy | User-respectful management |
 
-### **Practical Benefits of 8-Hour Lifetime**
+### **Activity Detection & Workspace Lifetime**
+
+#### **Intelligent Stopping Logic**
+The 8-hour lifetime is a **baseline guideline**, not a rigid cutoff. The system considers:
+
+1. **Recent Activity**: Workspaces showing recent user activity may get extended runtime
+2. **Idle Detection**: Algorithms attempt to detect if work is ongoing, but aren't perfect
+3. **User Preferences**: Individual autostop settings take precedence when configured
+4. **TTL Conflicts**: Workspace TTL settings may override quiet hours timing
+
+#### **Activity Detection Limitations**
+- **False Positives**: System may think workspace is idle when user is actually working
+- **False Negatives**: May detect activity from background processes, not actual user work
+- **Network Delays**: Activity detection may lag behind actual user actions
+- **Different Work Patterns**: Some development tasks appear "idle" but require workspace to remain running
+
+#### **Conflict Resolution Priority**
+1. **User Autostop Settings** (highest priority)
+2. **Workspace TTL Configuration**
+3. **Activity Detection Extensions**
+4. **8-Hour Baseline Quiet Hours**
+5. **Global Quiet Hours Policy** (lowest priority)
+
+#### **Best Practices**
+- **Set Realistic Autostop**: Configure workspace autostop for your typical work sessions
+- **Save Work Regularly**: Don't rely solely on activity detection
+- **Use Dry-Run Mode**: Test quiet hours behavior before enabling automatic stopping
+- **Monitor Extensions**: Review logs to understand when and why extensions occur
+
+### **Practical Benefits of 8-Hour Baseline**
 
 #### **Cost Optimization**
-- **Predictable Costs**: Workspaces run for consistent durations
-- **No Surprise Bills**: Eliminates 24+ hour workspace runs
-- **Fair Usage**: All users get equal workspace lifetime
+- **Predictable Baseline**: Workspaces have a consistent minimum lifetime expectation
+- **Controlled Extensions**: Activity-based extensions prevent unnecessary stops but limit runaway costs
+- **Fair Usage**: All users get equal baseline treatment with intelligent adjustments
 
 #### **Developer Experience**
-- **Predictable Shutdowns**: Developers know exactly when workspaces will stop
-- **Timezone Respect**: Uses individual user's timezone settings
-- **Work-Life Balance**: Aligns with personal quiet hours preferences
+- **Predictable Planning**: Developers know the baseline stopping time for planning
+- **Activity Respect**: System attempts to avoid interrupting active work
+- **Timezone Awareness**: Uses individual user's timezone settings
+- **Work-Life Balance**: Aligns with personal quiet hours preferences while respecting ongoing work
 
 #### **Operational Benefits**
-- **Reduced Support**: Fewer "why was my workspace stopped?" tickets
-- **Consistent Behavior**: Same rules apply regardless of start time
-- **Enterprise Compliance**: Respects individual user enterprise schedules
+- **Intelligent Automation**: Balances cost control with productivity needs
+- **Reduced Interruptions**: Activity detection reduces mid-work shutdowns
+- **Enterprise Compliance**: Respects individual user enterprise schedules and preferences
+- **Flexible Enforcement**: Adapts to real-world work patterns rather than rigid time cutoffs
 
 ### **Real-World Example**
 
@@ -176,13 +211,19 @@ The system includes intelligent edge case handling:
 Scenario: Development Team (Standard Business Hours)
 ├─ Working Hours: 09:00 - 18:00 (9 AM - 6 PM)
 ├─ Quiet Hours Start: 18:00 (6 PM)
-├─ 8-Hour Lifetime: 18:00 → 02:00 next day
-├─ Workspace started at 09:00: Runs until 02:00 (17 hours total, 8h in quiet period)
-├─ Workspace started at 15:00: Runs until 02:00 (11 hours total, 8h in quiet period)
-└─ Workspace started at 20:00: Runs until 02:00 (6 hours total, all in quiet period)
+├─ 8-Hour Baseline: 18:00 → 02:00 next day
+├─ Workspace started at 09:00: Eligible for stopping at 02:00*
+├─ Workspace started at 15:00: Eligible for stopping at 02:00*
+└─ Workspace started at 20:00: Eligible for stopping at 02:00*
 
-Result: All workspaces stop at the same predictable time (02:00)
-Benefit: Developers know exactly when to save work and expect shutdown
+* Activity Detection Considerations:
+  - If workspace shows recent activity at 02:00, stopping may be delayed
+  - Idle detection algorithms aren't perfect - active work may extend runtime
+  - User's autostop settings (if configured) take precedence
+  - TTL settings may override quiet hours timing
+
+Result: Predictable baseline with intelligent activity-aware extensions
+Benefit: Balances cost control with developer productivity
 ```
 
 ## 📊 **Workspace Categorization**
@@ -234,18 +275,39 @@ The agents provide detailed categorization of all workspaces:
 ### Quiet Hours Duration Configuration
 
 ```bash
-# Use default 8-hour lifetime
+# Use default 8-hour baseline lifetime
 python agents/prune_workspaces.py --cleanup
 
-# Custom 12-hour lifetime for longer development sessions
+# Custom 12-hour baseline for longer development sessions
 python agents/prune_workspaces.py --duration 12 --cleanup
 
-# Short 4-hour lifetime for quick tasks
+# Short 4-hour baseline for quick tasks
 python agents/prune_workspaces.py --duration 4 --cleanup
 
-# Weekend mode with 16-hour lifetime
+# Weekend mode with 16-hour baseline
 python agents/prune_workspaces.py --duration 16 --cleanup
 ```
+
+### Workspace Lifetime Considerations
+
+```json
+{
+  "prune_workspaces": {
+    "respect_user_autostop": true,
+    "activity_detection_enabled": true,
+    "activity_grace_period_minutes": 30,
+    "max_extension_hours": 4,
+    "ttl_override_quiet_hours": true
+  }
+}
+```
+
+**Configuration Options:**
+- `respect_user_autostop`: Honor user's workspace autostop settings (recommended: true)
+- `activity_detection_enabled`: Use activity detection to extend runtime (recommended: true)
+- `activity_grace_period_minutes`: Additional time after detected activity (default: 30)
+- `max_extension_hours`: Maximum extension beyond baseline (default: 4)
+- `ttl_override_quiet_hours`: Let TTL settings override quiet hours (recommended: true)
 
 ### Environment Variables
 ```bash
