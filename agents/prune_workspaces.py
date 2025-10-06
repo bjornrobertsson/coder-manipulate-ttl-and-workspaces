@@ -372,10 +372,10 @@ class PruneWorkspacesAgent:
             workspaces: List of workspaces with quiet hours info
         """
         if not workspaces:
-            print("\\n✅ No workspaces found within quiet hours periods")
+            print("\n✅ No workspaces found within quiet hours periods")
             return
         
-        print(f"\\n🌙 WORKSPACES WITHIN QUIET HOURS PERIODS ({len(workspaces)})")
+        print(f"\n🌙 WORKSPACES WITHIN QUIET HOURS PERIODS ({len(workspaces)})")
         print("=" * 80)
         
         # Group by user for better organization
@@ -391,7 +391,7 @@ class PruneWorkspacesAgent:
             quiet_info = user_workspaces[0].get('quiet_hours_info', {})
             user_qh = quiet_info.get('user_quiet_hours', {})
             
-            print(f"\\n👤 {owner}")
+            print(f"\n👤 {owner}")
             print(f"   Quiet Hours: {user_qh.get('start_time', 'N/A')} ({user_qh.get('timezone', 'N/A')})")
             if quiet_info.get('quiet_start') and quiet_info.get('quiet_end'):
                 start_time = datetime.fromisoformat(quiet_info['quiet_start'])
@@ -437,7 +437,7 @@ class PruneWorkspacesAgent:
             Dictionary mapping workspace_id to success status
         """
         if not workspaces:
-            print("\\n✅ No workspaces to cleanup")
+            print("\n✅ No workspaces to cleanup")
             return {}
         
         # Filter to only running workspaces
@@ -447,10 +447,10 @@ class PruneWorkspacesAgent:
         ]
         
         if not running_workspaces:
-            print(f"\\n✅ No running workspaces to cleanup (found {len(workspaces)} total, all already stopped)")
+            print(f"\n✅ No running workspaces to cleanup (found {len(workspaces)} total, all already stopped)")
             return {}
         
-        print(f"\\n{'🧪 [DRY RUN] ' if self.dry_run else '🛑 '}Cleaning up {len(running_workspaces)} running workspaces:")
+        print(f"\n{'🧪 [DRY RUN] ' if self.dry_run else '🛑 '}Cleaning up {len(running_workspaces)} running workspaces:")
         print("-" * 60)
         
         results = {}
@@ -576,7 +576,7 @@ def main():
         # Cleanup if requested
         if args.cleanup:
             if args.json:
-                print("\\n" + "="*50 + " CLEANUP RESULTS " + "="*50, file=sys.stderr)
+                print("\n" + "="*50 + " CLEANUP RESULTS " + "="*50, file=sys.stderr)
             
             results = agent.cleanup_workspaces(workspaces)
             
@@ -584,7 +584,7 @@ def main():
             total_count = len(results)
             
             if not args.json:
-                print(f"\\n📊 Cleanup completed: {success_count}/{total_count} workspaces processed successfully")
+                print(f"\n📊 Cleanup completed: {success_count}/{total_count} workspaces processed successfully")
                 
                 if success_count < total_count:
                     print("⚠️  Some operations failed. Check logs for details.")
