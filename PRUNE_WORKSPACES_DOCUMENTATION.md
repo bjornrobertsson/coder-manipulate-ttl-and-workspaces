@@ -13,9 +13,9 @@ The Prune Workspaces Agent identifies and manages workspaces that are within the
 - **Timezone Aware**: Respects each user's configured timezone
 
 ### Example:
-- User's quiet hours start: `13:32 Europe/London`
+- User's quiet hours start: `18:00 UTC` (6 PM)
 - Duration: `8 hours` (default)
-- **Quiet hours period**: `13:32 - 21:32 London time`
+- **Quiet hours period**: `18:00 - 02:00 next day UTC`
 
 ## 🚀 **Usage Examples**
 
@@ -84,7 +84,7 @@ DevEnv       python-template       stopped   2025-10-01
 TestSpace    nodejs-template       stopped   2025-10-02
 
 👤 alice
-   Quiet Hours: 18:00 (America/New_York)
+   Quiet Hours: 18:00 (UTC)
    Current Period: 18:00 - 02:00
 ------------------------------------------------------------
 Workspace    Template              Status    Created
@@ -157,7 +157,7 @@ WebApp       react-template        running   2025-09-15
 ### **2. Quiet Hours Detection**
 1. Fetch user's enterprise quiet hours schedule via API
 2. Parse cron schedule: `CRON_TZ=Europe/London 32 13 * * *`
-3. Extract start time (`13:32`) and timezone (`Europe/London`)
+3. Extract start time (`18:00`) and timezone (`UTC`)
 4. Calculate current quiet hours period based on duration
 
 ### **3. Workspace Analysis**
@@ -199,16 +199,16 @@ python agents/prune_workspaces.py --cleanup --dry-run
 ### **Quiet Hours Calculation**
 ```python
 # Example: User in London timezone
-start_time = "13:32"  # From enterprise schedule
-timezone = "Europe/London"  # From enterprise schedule
+start_time = "18:00"  # From enterprise schedule (6 PM)
+timezone = "UTC"  # From enterprise schedule
 duration = 8  # From --duration parameter or config
 
 # Current period calculation
-quiet_start = today_at_13_32_london_time
-quiet_end = quiet_start + 8_hours  # 21:32 London time
+quiet_start = today_at_18_00_utc  # 6 PM UTC
+quiet_end = quiet_start + 8_hours  # 02:00 next day UTC (2 AM)
 
 # Check if current time is within this period
-is_in_quiet_hours = quiet_start <= current_london_time <= quiet_end
+is_in_quiet_hours = quiet_start <= current_utc_time <= quiet_end
 ```
 
 ## 📅 **Scheduling Examples**

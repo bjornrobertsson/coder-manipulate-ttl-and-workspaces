@@ -107,19 +107,19 @@ Unlike traditional quiet hours that only have a start/end time, our **Prune Work
 
 **8-Hour Lifetime Solution:**
 - **Concept**: Workspaces get a guaranteed **8-hour lifetime** from their quiet hours start time
-- **Example**: User's quiet hours start at `13:32`, workspace gets stopped at `21:32` (13:32 + 8 hours)
+- **Example**: User's quiet hours start at `18:00` (6 PM), workspace gets stopped at `02:00` (2 AM) next day (18:00 + 8 hours)
 - **Benefit**: Consistent, predictable workspace lifetime regardless of when quiet hours start
 
 #### **How It Works**
 
 ```
-User's Quiet Hours: 13:32 London Time
-8-Hour Lifetime: 13:32 → 21:32 (8 hours later)
+User's Quiet Hours: 18:00 (6 PM) Local Time
+8-Hour Lifetime: 18:00 → 02:00 next day (8 hours later)
 
 Workspace Lifecycle:
-├─ 13:32: Quiet hours period begins
-├─ 13:32-21:32: Workspace allowed to run (8-hour lifetime)
-└─ 21:32: Workspace eligible for stopping
+├─ 18:00: Quiet hours period begins (end of business day)
+├─ 18:00-02:00: Workspace allowed to run (8-hour lifetime)
+└─ 02:00: Workspace eligible for stopping
 ```
 
 #### **Edge Case Handling**
@@ -138,9 +138,9 @@ The system includes intelligent edge case handling:
 
 | Scenario | Traditional Quiet Hours | 8-Hour Lifetime |
 |----------|------------------------|------------------|
-| **Workspace started at 07:00** | Stopped at 18:00 (11h) | Stopped at 21:32 (8h from QH start) |
-| **Workspace started at 17:59** | Stopped at 18:00 next day (24h+) | Stopped at 21:32 (8h from QH start) |
-| **Workspace started at 20:00** | Stopped at 08:00 next day (12h) | Stopped at 21:32 (8h from QH start) |
+| **Workspace started at 07:00** | Stopped at 18:00 (11h) | Stopped at 02:00 next day (8h from QH start) |
+| **Workspace started at 17:59** | Stopped at 18:00 next day (24h+) | Stopped at 02:00 next day (8h from QH start) |
+| **Workspace started at 20:00** | Stopped at 08:00 next day (12h) | Stopped at 02:00 next day (8h from QH start) |
 | **Consistency** | ❌ Variable (11-24+ hours) | ✅ Predictable (8 hours) |
 
 ### **Quiet Hours vs Prune Workspaces**
@@ -173,15 +173,16 @@ The system includes intelligent edge case handling:
 ### **Real-World Example**
 
 ```
-Scenario: Developer in London (bjorn)
-├─ Enterprise Quiet Hours: 13:32 Europe/London
-├─ 8-Hour Lifetime: 13:32 → 21:32 London time
-├─ Workspace started at 10:00: Runs until 21:32 (11.5 hours)
-├─ Workspace started at 15:00: Runs until 21:32 (6.5 hours)
-└─ Workspace started at 20:00: Runs until 21:32 (1.5 hours)
+Scenario: Development Team (Standard Business Hours)
+├─ Working Hours: 09:00 - 18:00 (9 AM - 6 PM)
+├─ Quiet Hours Start: 18:00 (6 PM)
+├─ 8-Hour Lifetime: 18:00 → 02:00 next day
+├─ Workspace started at 09:00: Runs until 02:00 (17 hours total, 8h in quiet period)
+├─ Workspace started at 15:00: Runs until 02:00 (11 hours total, 8h in quiet period)
+└─ Workspace started at 20:00: Runs until 02:00 (6 hours total, all in quiet period)
 
-Result: All workspaces stop at the same predictable time (21:32)
-Benefit: Developer knows exactly when to save work and expect shutdown
+Result: All workspaces stop at the same predictable time (02:00)
+Benefit: Developers know exactly when to save work and expect shutdown
 ```
 
 ## 📊 **Workspace Categorization**
@@ -202,8 +203,8 @@ The agents provide detailed categorization of all workspaces:
 {
   \"quiet_hours\": {
     \"enabled\": true,
-    \"start_time\": \"18:00\",
-    \"end_time\": \"08:00\",
+    "start_time": "18:00",
+    "end_time": "09:00",
     \"timezone\": \"UTC\",
     \"grace_period_hours\": 1,
     \"excluded_users\": [\"admin\"],
@@ -250,8 +251,8 @@ python agents/prune_workspaces.py --duration 16 --cleanup
 ```bash
 export CODER_URL=\"https://your-coder-instance.com\"
 export CODER_TOKEN=\"your-api-token\"
-export QUIET_HOURS_START=\"18:00\"
-export QUIET_HOURS_END=\"08:00\"
+export QUIET_HOURS_START="18:00"
+export QUIET_HOURS_END="09:00"
 export QUIET_HOURS_TIMEZONE=\"UTC\"
 ```
 

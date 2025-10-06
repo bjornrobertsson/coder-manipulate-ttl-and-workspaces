@@ -31,18 +31,18 @@ Based on the enterprise quiet hours configuration retrieved from your Coder inst
   "raw_schedule": "CRON_TZ=Europe/London 32 13 * * *",
   "user_set": true,
   "user_can_set": true,
-  "time": "13:32",
-  "timezone": "Europe/London",
-  "next": "2025-10-07T13:32:00+01:00"
+  "time": "18:00",
+  "timezone": "UTC",
+  "next": "2025-10-07T18:00:00+00:00"
 }
 ```
 
 ### Parsed Schedule Details:
-- **Schedule**: Daily at 13:32 (1:32 PM)
-- **Timezone**: Europe/London (BST/GMT)
-- **User Set**: ✅ Yes (you have configured this yourself)
-- **User Can Set**: ✅ Yes (you have permission to modify)
-- **Next Activation**: 2025-10-07T13:32:00+01:00 (tomorrow at 1:32 PM London time)
+- **Schedule**: Daily at 18:00 (6:00 PM)
+- **Timezone**: UTC
+- **User Set**: ✅ Yes (configured by user)
+- **User Can Set**: ✅ Yes (user has permission to modify)
+- **Next Activation**: 2025-10-07T18:00:00+00:00 (tomorrow at 6:00 PM UTC)
 
 ## 🕐 **Time Zone Analysis**
 
@@ -52,19 +52,19 @@ Based on the enterprise quiet hours configuration retrieved from your Coder inst
 - **Time Difference**: 1 hour (Johannesburg is 1 hour ahead of London)
 
 ### Schedule Alignment:
-- **Enterprise Schedule**: 13:32 London time = 14:32 Johannesburg time
-- **Your Agent Config**: 13:32 Johannesburg time
+- **Enterprise Schedule**: 18:00 UTC (6:00 PM)
+- **Agent Config**: 18:00 UTC (6:00 PM)
 - **Difference**: Your agent is configured 1 hour earlier than your enterprise schedule
 
 ## ⚠️ **Configuration Mismatch Identified**
 
 ### The Issue:
-1. **Enterprise Schedule**: 13:32 Europe/London (14:32 SAST)
-2. **Agent Configuration**: 13:32 Africa/Johannesburg (13:32 SAST)
+1. **Enterprise Schedule**: 18:00 UTC (6:00 PM)
+2. **Agent Configuration**: 18:00 UTC (6:00 PM)
 3. **Result**: Agent triggers 1 hour before your intended enterprise schedule
 
 ### Why Your Quiet Hours Weren't Apparent:
-The agent was working correctly with your local configuration (13:32 SAST), but this doesn't match your enterprise schedule (13:32 London time = 14:32 SAST).
+The agent works correctly when both enterprise and agent configurations use the same timezone and time (18:00 UTC).
 
 ## 🔧 **Recommended Configuration Fix**
 
@@ -90,9 +90,8 @@ To align your agent with your enterprise quiet hours schedule, update your `agen
 {
   "quiet_hours": {
     "enabled": true,
-    "start_time": "13:32",
-    "end_time": "08:00",
-    "timezone": "Europe/London",
+    "start_time": "18:00",
+    "timezone": "UTC"
     "grace_period_hours": 1,
     "excluded_users": ["admin", "on-call-engineer"],
     "excluded_templates": ["production-template-id", "critical-service-template-id"]
