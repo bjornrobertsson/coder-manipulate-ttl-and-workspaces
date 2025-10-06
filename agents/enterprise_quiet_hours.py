@@ -47,7 +47,7 @@ def main():
             
             # If specific user requested, show their schedule too
             if args.user:
-                print(f"\\n{'='*80}")
+                print(f"\n{'='*80}")
                 print(f"USER QUIET HOURS FOR: {args.user}")
                 print(f"{'='*80}")
                 

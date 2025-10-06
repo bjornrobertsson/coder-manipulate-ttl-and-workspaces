@@ -40,7 +40,7 @@ def example_basic_workspace_operations():
         
         # Show running workspaces
         if running:
-            print("\\nRunning workspaces:")
+            print("\nRunning workspaces:")
             for ws in running[:5]:  # Show first 5
                 print(f"  - {controller.workspace_summary(ws)}")
             if len(running) > 5:
@@ -54,7 +54,7 @@ def example_basic_workspace_operations():
 
 def example_quiet_hours_check():
     """Example: Check quiet hours status"""
-    print("\\n" + "=" * 60)
+    print("\n" + "=" * 60)
     print("EXAMPLE 2: Quiet Hours Status Check")
     print("=" * 60)
     
@@ -76,14 +76,14 @@ def example_quiet_hours_check():
         print(f"🛑 Workspaces to stop: {len(workspaces_to_stop)}")
         
         if workspaces_to_stop:
-            print("\\nWorkspaces that would be stopped:")
+            print("\nWorkspaces that would be stopped:")
             for ws in workspaces_to_stop[:3]:  # Show first 3
                 print(f"  - {agent.controller.workspace_summary(ws)}")
             if len(workspaces_to_stop) > 3:
                 print(f"  ... and {len(workspaces_to_stop) - 3} more")
         
         # Generate and show report
-        print("\\n📋 Generating detailed report...")
+        print("\n📋 Generating detailed report...")
         report = agent.generate_report()
         print(f"Action required: {report['action_required']}")
         
@@ -95,8 +95,8 @@ def example_quiet_hours_check():
 
 def example_ttl_compliance():
     """Example: TTL compliance monitoring"""
-    print("\\n" + "=" * 60)
-    print("EXAMPLE 3: TTL Compliance Monitoring")
+    print("\n" + "=" * 60)
+    print("EXAMPLE 3: TTL Compliance Report")
     print("=" * 60)
     
     try:
@@ -114,7 +114,7 @@ def example_ttl_compliance():
         
         # Show expired workspaces
         if report['workspaces']['expired']:
-            print("\\n🔴 Workspaces that SHOULD HAVE STOPPED:")
+            print("\n🔴 Workspaces that SHOULD HAVE STOPPED:")
             for ws in report['workspaces']['expired'][:3]:
                 print(f"  - {ws['owner']}/{ws['name']}: {ws['time_remaining']}")
             if len(report['workspaces']['expired']) > 3:
@@ -122,7 +122,7 @@ def example_ttl_compliance():
         
         # Show expiring soon
         if report['workspaces']['expiring_soon']:
-            print("\\n🟡 Workspaces EXPIRING SOON:")
+            print("\n🟡 Workspaces EXPIRING SOON:")
             for ws in report['workspaces']['expiring_soon'][:3]:
                 print(f"  - {ws['owner']}/{ws['name']}: {ws['time_remaining']}")
             if len(report['workspaces']['expiring_soon']) > 3:
@@ -136,8 +136,8 @@ def example_ttl_compliance():
 
 def example_combined_analysis():
     """Example: Combined analysis using multiple agents"""
-    print("\\n" + "=" * 60)
-    print("EXAMPLE 4: Combined Analysis")
+    print("\n" + "=" * 60)
+    print("EXAMPLE 4: Comprehensive Workspace Analysis")
     print("=" * 60)
     
     try:
@@ -192,7 +192,7 @@ def example_combined_analysis():
         print(f"  TTL expiring soon: {analysis_results['ttl_expiring_soon']}")
         
         if analysis_results["action_needed"]:
-            print(f"\\n⚠️  Actions needed ({len(analysis_results['action_needed'])}):")
+            print(f"\n⚠️  Actions needed ({len(analysis_results['action_needed'])}):")
             for action in analysis_results["action_needed"][:5]:
                 priority_icon = "🔥" if action["priority"] == "critical" else "⚡"
                 print(f"  {priority_icon} {action['workspace']}: {action['reason']}")
@@ -200,7 +200,7 @@ def example_combined_analysis():
             if len(analysis_results["action_needed"]) > 5:
                 print(f"  ... and {len(analysis_results['action_needed']) - 5} more")
         else:
-            print("\\n✅ No immediate actions needed")
+            print("\n✅ No immediate actions needed")
         
         return True
         
@@ -210,8 +210,8 @@ def example_combined_analysis():
 
 def example_dry_run_operations():
     """Example: Demonstrate dry-run operations"""
-    print("\\n" + "=" * 60)
-    print("EXAMPLE 5: Dry-Run Operations (Safe Testing)")
+    print("\n" + "=" * 60)
+    print("EXAMPLE 5: Dry-Run Workspace Management")
     print("=" * 60)
     
     try:
@@ -222,7 +222,7 @@ def example_dry_run_operations():
         print("🧪 Running in DRY-RUN mode (no actual changes will be made)")
         
         # Simulate quiet hours stopping
-        print("\\n🌙 Simulating quiet hours workspace stopping...")
+        print("\n🌙 Simulating quiet hours workspace stopping...")
         results = quiet_agent.stop_workspaces_for_quiet_hours()
         
         if results:
@@ -262,7 +262,7 @@ def main():
             results.append((name, False))
     
     # Summary
-    print("\\n" + "=" * 80)
+    print("\n" + "=" * 80)
     print("EXAMPLE EXECUTION SUMMARY")
     print("=" * 80)
     
@@ -271,10 +271,10 @@ def main():
         print(f"{status}: {name}")
     
     successful = sum(1 for _, success in results if success)
-    print(f"\\n📊 Overall: {successful}/{len(results)} examples completed successfully")
+    print(f"\n📊 Overall: {successful}/{len(results)} examples completed successfully")
     
     if successful < len(results):
-        print("\\n💡 Tips for troubleshooting:")
+        print("\n💡 Tips for troubleshooting:")
         print("  • Check CODER_URL and CODER_TOKEN environment variables")
         print("  • Ensure API token has workspace management permissions")
         print("  • Verify network connectivity to Coder instance")

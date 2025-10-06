@@ -383,7 +383,7 @@ class TTLMonitorAgent:
         
         try:
             while True:
-                print(f"\\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running TTL check...")
+                print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running TTL check...")
                 
                 exceeding = self.get_workspaces_exceeding_ttl()
                 if exceeding:
@@ -396,7 +396,7 @@ class TTLMonitorAgent:
                 time.sleep(interval_minutes * 60)
                 
         except KeyboardInterrupt:
-            print("\\nMonitoring stopped by user")
+            print("\nMonitoring stopped by user")
 
 def main():
     """Main function with command line interface"""
