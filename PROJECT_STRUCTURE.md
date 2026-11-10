@@ -24,6 +24,15 @@ Audit-and-stop/                     # Extended project root
 ├── cron-examples.txt               # ⏰ Cron job examples (generated)
 ├── coder-agents.service             # 🔧 Systemd service template (generated)
 │
+├── autostop/                       # 🛑 Template-scoped autostop report/notify/stop (POC, k8s CronJob)
+│   ├── README.md                   # 📖 Usage, config reference, k8s deploy
+│   ├── autostop_manager.py         # 🐍 Single-file script (ConfigMap-shippable)
+│   ├── config.example.yaml         # ⚙️ Config (template, dry_run, action, notify, smtp)
+│   ├── requirements.txt            # 📦 requests, PyYAML, tabulate
+│   ├── deploy.sh                   # 🚀 ConfigMap/git-pull deploy into a namespace (default coder)
+│   ├── k8s/                        # ☸️ cronjob.yaml, cronjob-git.yaml, secret.example.yaml
+│   └── tests/                      # 🧪 pytest unit tests
+│
 └── agents/                         # 🤖 New: Workspace management agents
     ├── README.md                   # 📖 Agents documentation
     ├── workspace_controller.py     # 🎮 Core API wrapper
