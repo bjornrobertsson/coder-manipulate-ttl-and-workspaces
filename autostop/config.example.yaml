@@ -1,0 +1,25 @@
+# autostop_manager.py configuration (mounted as ConfigMap key config.yaml)
+template: "my-template"        # template name or ID (required)
+organization: ""               # optional; set if the template name exists in several orgs
+dry_run: true                  # true: no stops, emails printed to logs
+action: "report_only"          # report_only | report_idle | stop
+idle_threshold_hours: 24       # last_used_at older than this => idle
+stop_window_hours: 4           # flag workspaces stopping within this window
+run_interval_minutes: 30       # match the CronJob schedule; used to avoid repeat emails
+quiet_hours_tolerance_minutes: 5
+ignore_required_stop_day: false # true: ignore template required stop day/max_deadline, use ONLY max_running_hours
+max_running_hours: 0           # allowed running time since start build (e.g. 336 = 14 days); required when above is true
+output: "table"                # table | json
+notify:
+  template_owner: true         # summary to the template creator
+  workspace_owner: true        # per-workspace email to its owner
+  dedupe: true                 # only email when a condition first becomes true
+  extra_recipients: []         # e.g. ["platform-team@example.com"]
+  redirect_to: ""              # testing/staged rollout: send ALL mail here instead of real recipients
+smtp:
+  host: ""                     # empty => emails are printed, not sent
+  port: 587
+  starttls: true
+  tls_verify: true             # set false only for relays whose cert doesn't match smtp.host
+  from_address: "coder-autostop@example.com"
+  # SMTP_USERNAME / SMTP_PASSWORD come from the Secret

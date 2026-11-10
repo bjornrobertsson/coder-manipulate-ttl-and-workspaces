@@ -17,6 +17,11 @@ A comprehensive workspace management solution that extends the [coder-audit-simp
 - **Predictive Monitoring**: Identifies workspaces expiring soon
 - **Continuous Monitoring**: Daemon mode for ongoing TTL compliance tracking
 
+### 🛑 **Autostop Manager (POC)** - [`autostop/`](autostop/README.md)
+- Template-scoped report / notify / stop, runnable locally or as a Kubernetes CronJob
+- Flags workspaces whose stop time was clamped to now+2h after a template autostop-requirement change
+- Emails workspace owners and the template owner; `dry_run` by default
+
 ### 🏢 **Enterprise Integration**
 - **Enterprise Quiet Hours**: Full visibility into enterprise policies and user schedules
 - **User Schedule Sync**: Automatic detection of individual user quiet hours settings
