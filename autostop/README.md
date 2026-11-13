@@ -72,7 +72,14 @@ inside the window.
   evaluated in the **owner's** timezone. Coder defines only the start time, so the window is
   `start .. start + quiet_hours_window_hours` (default 4h; CLI `--quiet-hours-window-hours`),
   including windows that cross midnight.
-- Owners whose quiet hours cannot be read are deferred, never force-stopped.
+- Owners whose quiet hours cannot be read are deferred by default.
+- Overrides (only meaningful with `stop_only_in_quiet_hours`):
+  - `force: true` / `--force`: also stop workspaces whose owner's quiet hours are
+    **unknown**. Owners known to be outside their quiet hours still wait.
+  - `force_all: true` / `--force-all`: ignore quiet hours and stop **every**
+    qualifying workspace now. The action reads `stopped (force-all: ...)` and the owner
+    email says the stop was an administrator override.
+  - Neither flag stops anything that doesn't already qualify (idle / over `max_running_hours`).
 - Keep the CronJob interval (`run_interval_minutes`) shorter than the window; the script
   warns if it isn't.
 - The owner is emailed once when the workspace first qualifies ("will be stopped during
@@ -81,7 +88,12 @@ inside the window.
 ```bash
 ./autostop_manager.py --template my-template --ignore-required-stop-day --max-running-hours 336 \
   --action stop --stop-only-in-quiet-hours --quiet-hours-window-hours 4 --dry-run
+# one-off override: stop everything that qualifies, regardless of quiet hours
+./autostop_manager.py --template my-template --ignore-required-stop-day --max-running-hours 336 \
+  --action stop --stop-only-in-quiet-hours --force-all --notify-all
 ```
+
+Verified live: see [docs/quiet-hours-evidence-2026-11-13.md](docs/quiet-hours-evidence-2026-11-13.md).
 
 ## Local run
 

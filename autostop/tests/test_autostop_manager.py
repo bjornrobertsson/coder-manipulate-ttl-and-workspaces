@@ -416,6 +416,60 @@ def test_quiet_hours_flag_without_stop_action_changes_nothing(capsys):
     assert fc.stopped == [] and "deferred" not in capsys.readouterr().out
 
 
+def _three_owners():
+    old = NOW - dt.timedelta(hours=100)
+    ws = [workspace("inside", started=old), workspace("outside", started=old), workspace("unknown", started=old)]
+    qh = {"user-inside": {"time": "14:30", "timezone": "UTC"},
+          "user-outside": {"time": "02:00", "timezone": "UTC"},
+          "user-unknown": None}
+    return ws, qh
+
+
+def test_force_stops_unknown_but_not_known_outside(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    assert am.run(qcfg(force=True), fc, NOW) == 0
+    out = capsys.readouterr().out
+    assert sorted(fc.stopped) == ["inside", "unknown"]
+    assert "stopped (force: quiet hours unknown)" in out
+    assert "deferred:quiet-hours Wed 2026-11-11 02:00 UTC" in out  # known-outside still waits
+
+
+def test_force_all_stops_everything_qualifying(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    assert am.run(qcfg(force_all=True), fc, NOW) == 0
+    out = capsys.readouterr().out
+    assert sorted(fc.stopped) == ["inside", "outside", "unknown"]
+    assert "stopped (force-all: outside quiet hours)" in out
+    assert "stopped (force-all: quiet hours unknown)" in out
+    assert "outside your quiet hours by administrator override" in out
+
+
+def test_force_all_dry_run_labels_and_does_not_stop(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    am.run(qcfg(force_all=True, dry_run=True), fc, NOW)
+    assert fc.stopped == [] and "would-stop (force-all: outside quiet hours)" in capsys.readouterr().out
+
+
+def test_force_never_stops_non_qualifying():
+    young = workspace("young", started=NOW - dt.timedelta(hours=1))  # under max_running_hours
+    fc = FakeClient(template(days=()), [young], qh={"user-young": None})
+    am.run(qcfg(force_all=True), fc, NOW)
+    assert fc.stopped == []
+
+
+def test_force_flags_cli_and_warning(monkeypatch, capsys):
+    a = am.parse_args(["--force", "--force-all"])
+    assert a.force is True and a.force_all is True
+    monkeypatch.setenv("CODER_URL", "https://c")
+    monkeypatch.setenv("CODER_TOKEN", "t")
+    c = am.load_config("/nonexistent", {"template": "t", "force": True})
+    assert c["force"] is True and c["force_all"] is False
+    assert "no effect" in capsys.readouterr().err
+
+
 def test_quiet_hours_config_validation(monkeypatch, capsys):
     monkeypatch.setenv("CODER_URL", "https://c")
     monkeypatch.setenv("CODER_TOKEN", "t")

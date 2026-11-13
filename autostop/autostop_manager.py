@@ -66,6 +66,12 @@ DEFAULT_CONFIG = {
     # Owners whose quiet hours can't be read are deferred, never force-stopped.
     "stop_only_in_quiet_hours": False,
     "quiet_hours_window_hours": 4,
+    # Overrides for stop_only_in_quiet_hours:
+    #   force:     also stop workspaces whose owner's quiet hours are UNKNOWN
+    #              (owners known to be outside their quiet hours still wait)
+    #   force_all: ignore quiet hours entirely; stop every qualifying workspace now
+    "force": False,
+    "force_all": False,
     "notify": {
         "template_owner": True,
         "workspace_owner": True,
@@ -128,6 +134,9 @@ def load_config(path=None, cli=None):
         cfg["max_running_hours"] = cli["max_running_hours"]
     if cli.get("stop_only_in_quiet_hours"):
         cfg["stop_only_in_quiet_hours"] = True
+    for key in ("force", "force_all"):
+        if cli.get(key):
+            cfg[key] = True
     if cli.get("quiet_hours_window_hours") is not None:
         cfg["quiet_hours_window_hours"] = cli["quiet_hours_window_hours"]
 
@@ -140,6 +149,11 @@ def load_config(path=None, cli=None):
     if cfg["ignore_required_stop_day"] and cfg["max_running_hours"] <= 0:
         raise ConfigError("ignore_required_stop_day requires max_running_hours > 0")
     cfg["stop_only_in_quiet_hours"] = str2bool(cfg["stop_only_in_quiet_hours"])
+    cfg["force"] = str2bool(cfg["force"])
+    cfg["force_all"] = str2bool(cfg["force_all"])
+    if (cfg["force"] or cfg["force_all"]) and not cfg["stop_only_in_quiet_hours"]:
+        print("WARNING: force/force_all only change stop_only_in_quiet_hours behaviour, which is off; "
+              "they have no effect.", file=sys.stderr)
     try:
         cfg["quiet_hours_window_hours"] = float(cfg["quiet_hours_window_hours"])
     except (TypeError, ValueError):
@@ -439,7 +453,8 @@ def render_owner_email(rec, template, cfg, coder_url, stopped=False, deferred_un
         lines.append("Your workspace '%s' (template '%s') has been stopped because %s." % (
             rec["name"], template["name"], "it was idle" if why == "idle" else "it ran longer than the allowed interval"))
         if cfg.get("stop_only_in_quiet_hours"):
-            lines.append("The stop was made during your quiet hours.")
+            lines.append("The stop was made outside your quiet hours by administrator override."
+                         if rec.get("forced") else "The stop was made during your quiet hours.")
     elif deferred_until is not None:
         lines.append("Your workspace '%s' (template '%s') %s and will be stopped during your quiet hours, "
                      "from %s." % (rec["name"], template["name"],
@@ -597,7 +612,11 @@ def run(cfg, client, now=None):
         deferred_until = None  # None = not deferred; False = deferred, next window unknown
         if cfg["action"] == "stop" and stop_reason(cfg) in rec["flags"] and cfg.get("stop_only_in_quiet_hours"):
             inside, next_start, _ = quiet_hours_window(rec["quiet_hours"], now, cfg["quiet_hours_window_hours"])
-            if not inside:
+            if not inside and cfg.get("force_all"):
+                rec["forced"] = "force-all: %s" % ("outside quiet hours" if inside is False else "quiet hours unknown")
+            elif inside is None and cfg.get("force"):
+                rec["forced"] = "force: quiet hours unknown"
+            if not inside and not rec.get("forced"):
                 deferred_until = next_start if next_start else False
                 actions[rec["id"]] = ("deferred:quiet-hours %s" % fmt_time(next_start, rec["timezone"])
                                       if next_start else "deferred:quiet-hours-unknown")
@@ -605,11 +624,11 @@ def run(cfg, client, now=None):
                                       else "owner quiet hours unknown; not stopping")
         if cfg["action"] == "stop" and stop_reason(cfg) in rec["flags"] and deferred_until is None:
             if cfg["dry_run"]:
-                actions[rec["id"]] = "would-stop"
+                actions[rec["id"]] = "would-stop" + (" (%s)" % rec["forced"] if rec.get("forced") else "")
             else:
                 try:
                     client.stop_workspace(rec["id"])
-                    actions[rec["id"]] = "stopped"
+                    actions[rec["id"]] = "stopped" + (" (%s)" % rec["forced"] if rec.get("forced") else "")
                     stopped = True
                 except requests.HTTPError as e:
                     actions[rec["id"]] = "stop-failed:%s" % e.response.status_code
@@ -665,6 +684,10 @@ def parse_args(argv):
                    help="allowed running time since the workspace's start build (used with --ignore-required-stop-day)")
     p.add_argument("--stop-only-in-quiet-hours", action="store_true", default=None,
                    help="with --action stop: only stop while the workspace owner is inside their quiet hours")
+    p.add_argument("--force", action="store_true", default=None,
+                   help="with --stop-only-in-quiet-hours: also stop workspaces whose owner's quiet hours are unknown")
+    p.add_argument("--force-all", action="store_true", default=None,
+                   help="with --stop-only-in-quiet-hours: ignore quiet hours and stop every qualifying workspace now")
     p.add_argument("--quiet-hours-window-hours", type=float,
                    help="length of the quiet-hours window after the owner's quiet-hours start (default 4)")
     return p.parse_args(argv)
