@@ -59,6 +59,13 @@ DEFAULT_CONFIG = {
     # requirement to none for this to be the effective policy.
     "ignore_required_stop_day": False,
     "max_running_hours": 0,
+    # Only stop a workspace while its OWNER is inside their quiet hours
+    # (GET /api/v2/users/{id}/quiet-hours: start time + timezone). Coder defines
+    # only the start, so the window is start .. start + quiet_hours_window_hours
+    # in the owner's timezone. Outside it, the stop is deferred to a later run.
+    # Owners whose quiet hours can't be read are deferred, never force-stopped.
+    "stop_only_in_quiet_hours": False,
+    "quiet_hours_window_hours": 4,
     "notify": {
         "template_owner": True,
         "workspace_owner": True,
@@ -119,6 +126,10 @@ def load_config(path=None, cli=None):
         cfg["ignore_required_stop_day"] = True
     if cli.get("max_running_hours") is not None:
         cfg["max_running_hours"] = cli["max_running_hours"]
+    if cli.get("stop_only_in_quiet_hours"):
+        cfg["stop_only_in_quiet_hours"] = True
+    if cli.get("quiet_hours_window_hours") is not None:
+        cfg["quiet_hours_window_hours"] = cli["quiet_hours_window_hours"]
 
     cfg["dry_run"] = str2bool(cfg["dry_run"])
     cfg["ignore_required_stop_day"] = str2bool(cfg["ignore_required_stop_day"])
@@ -128,6 +139,18 @@ def load_config(path=None, cli=None):
         raise ConfigError("max_running_hours must be a number, got %r" % cfg["max_running_hours"])
     if cfg["ignore_required_stop_day"] and cfg["max_running_hours"] <= 0:
         raise ConfigError("ignore_required_stop_day requires max_running_hours > 0")
+    cfg["stop_only_in_quiet_hours"] = str2bool(cfg["stop_only_in_quiet_hours"])
+    try:
+        cfg["quiet_hours_window_hours"] = float(cfg["quiet_hours_window_hours"])
+    except (TypeError, ValueError):
+        raise ConfigError("quiet_hours_window_hours must be a number, got %r" % cfg["quiet_hours_window_hours"])
+    if cfg["stop_only_in_quiet_hours"]:
+        if not 0 < cfg["quiet_hours_window_hours"] <= 24:
+            raise ConfigError("quiet_hours_window_hours must be > 0 and <= 24")
+        if float(cfg["run_interval_minutes"]) > cfg["quiet_hours_window_hours"] * 60:
+            print("WARNING: run_interval_minutes (%s) is longer than quiet_hours_window_hours (%s h); "
+                  "a run may never land inside an owner's quiet hours." % (
+                      cfg["run_interval_minutes"], cfg["quiet_hours_window_hours"]), file=sys.stderr)
     if not cfg["template"]:
         raise ConfigError("'template' is required (config file or --template)")
     if cfg["action"] not in ACTIONS:
@@ -268,6 +291,36 @@ def quiet_hours_start_minutes(qh):
         return None
 
 
+def quiet_hours_window(qh, now, window_hours):
+    """
+    Is `now` inside the owner's quiet hours, and when does the next window start?
+    Returns (inside: bool|None, next_start: datetime|None, window_start: datetime|None).
+    inside is None when the quiet hours are unknown (no response / unparsable).
+    Window = [start, start + window_hours) in the owner's timezone; the previous
+    day's window is also checked so windows crossing midnight work.
+    """
+    start_min = quiet_hours_start_minutes(qh)
+    if start_min is None or ZoneInfo is None:
+        return None, None, None
+    try:
+        tz = ZoneInfo((qh or {}).get("timezone") or "UTC")
+    except Exception:
+        return None, None, None
+    local_now = now.astimezone(tz)
+    length = dt.timedelta(hours=float(window_hours))
+    for day_offset in (0, -1):
+        day = (local_now + dt.timedelta(days=day_offset)).date()
+        start = dt.datetime(day.year, day.month, day.day, start_min // 60, start_min % 60, tzinfo=tz)
+        if start <= local_now < start + length:
+            return True, None, start
+    day = local_now.date()
+    nxt = dt.datetime(day.year, day.month, day.day, start_min // 60, start_min % 60, tzinfo=tz)
+    if nxt <= local_now:
+        day = day + dt.timedelta(days=1)
+        nxt = dt.datetime(day.year, day.month, day.day, start_min // 60, start_min % 60, tzinfo=tz)
+    return False, nxt, None
+
+
 def is_off_schedule(stop_at, template, qh, tolerance_minutes=5):
     """
     True when a max_deadline-driven stop does not land on a required day at the
@@ -348,6 +401,7 @@ def classify(ws, template, qh, cfg, now):
         "flags": flags,
         "reasons": reasons,
         "timezone": (qh or {}).get("timezone") or "UTC",
+        "quiet_hours": qh,
     }
 
 
@@ -377,13 +431,21 @@ def should_notify(rec, template, cfg, now):
 
 # --------------------------------------------------------------------------- email
 
-def render_owner_email(rec, template, cfg, coder_url, stopped=False):
+def render_owner_email(rec, template, cfg, coder_url, stopped=False, deferred_until=None):
     tz = rec["timezone"]
     lines = ["Hello %s," % rec["owner"], ""]
     why = stop_reason(cfg)
     if stopped:
         lines.append("Your workspace '%s' (template '%s') has been stopped because %s." % (
             rec["name"], template["name"], "it was idle" if why == "idle" else "it ran longer than the allowed interval"))
+        if cfg.get("stop_only_in_quiet_hours"):
+            lines.append("The stop was made during your quiet hours.")
+    elif deferred_until is not None:
+        lines.append("Your workspace '%s' (template '%s') %s and will be stopped during your quiet hours, "
+                     "from %s." % (rec["name"], template["name"],
+                                   "is idle" if why == "idle" else "has run longer than the allowed interval",
+                                   fmt_time(deferred_until, tz) if deferred_until else "your next quiet hours"))
+        lines.append("Save your work before then.")
     elif "over_interval" in rec["flags"]:
         lines.append("Your workspace '%s' (template '%s') has run longer than the allowed %s." % (
             rec["name"], template["name"], fmt_delta(dt.timedelta(hours=float(cfg["max_running_hours"])))))
@@ -397,6 +459,8 @@ def render_owner_email(rec, template, cfg, coder_url, stopped=False):
     lines += ["", "Workspace: %s/@%s/%s" % (coder_url, rec["owner"], rec["name"])]
     if stopped:
         state = "stopped (%s)" % ("idle" if why == "idle" else "running interval exceeded")
+    elif deferred_until is not None:
+        state = "will stop in your quiet hours" + (" (%s)" % fmt_time(deferred_until, tz) if deferred_until else "")
     elif "over_interval" in rec["flags"]:
         state = "exceeded its running interval"
     else:
@@ -530,7 +594,16 @@ def run(cfg, client, now=None):
 
     for rec in records:
         stopped = False
-        if cfg["action"] == "stop" and stop_reason(cfg) in rec["flags"]:
+        deferred_until = None  # None = not deferred; False = deferred, next window unknown
+        if cfg["action"] == "stop" and stop_reason(cfg) in rec["flags"] and cfg.get("stop_only_in_quiet_hours"):
+            inside, next_start, _ = quiet_hours_window(rec["quiet_hours"], now, cfg["quiet_hours_window_hours"])
+            if not inside:
+                deferred_until = next_start if next_start else False
+                actions[rec["id"]] = ("deferred:quiet-hours %s" % fmt_time(next_start, rec["timezone"])
+                                      if next_start else "deferred:quiet-hours-unknown")
+                rec["reasons"].append("outside owner quiet hours" if inside is False
+                                      else "owner quiet hours unknown; not stopping")
+        if cfg["action"] == "stop" and stop_reason(cfg) in rec["flags"] and deferred_until is None:
             if cfg["dry_run"]:
                 actions[rec["id"]] = "would-stop"
             else:
@@ -542,7 +615,8 @@ def run(cfg, client, now=None):
                     actions[rec["id"]] = "stop-failed:%s" % e.response.status_code
                     failures += 1
         if notify_owner and (stopped or should_notify(rec, template, cfg, now)):
-            subject, body = render_owner_email(rec, template, cfg, cfg["coder_url"], stopped=stopped)
+            subject, body = render_owner_email(rec, template, cfg, cfg["coder_url"], stopped=stopped,
+                                               deferred_until=deferred_until)
             try:
                 if send_email(cfg, [email_of(rec["owner_id"])], subject, body):
                     if cfg["dry_run"]:
@@ -560,7 +634,10 @@ def run(cfg, client, now=None):
 
     flagged = [r for r in records if r["flags"]]
     if flagged and cfg["action"] in ("report_idle", "stop") and cfg["notify"].get("template_owner"):
-        if actions or not cfg["notify"].get("dedupe", True):
+        # A workspace that is only "deferred" (no stop, no owner email this run) must not
+        # re-trigger the summary on every CronJob run.
+        acted = [a for a in actions.values() if a and (not a.startswith("deferred:") or "notif" in a)]
+        if acted or not cfg["notify"].get("dedupe", True):
             recipients = [email_of(template["created_by_id"])] + list(cfg["notify"].get("extra_recipients") or [])
             subject, body = render_template_owner_email(template, records, actions, cfg)
             try:
@@ -586,6 +663,10 @@ def parse_args(argv):
                    help="ignore template required stop day/max_deadline; use only --max-running-hours")
     p.add_argument("--max-running-hours", type=float,
                    help="allowed running time since the workspace's start build (used with --ignore-required-stop-day)")
+    p.add_argument("--stop-only-in-quiet-hours", action="store_true", default=None,
+                   help="with --action stop: only stop while the workspace owner is inside their quiet hours")
+    p.add_argument("--quiet-hours-window-hours", type=float,
+                   help="length of the quiet-hours window after the owner's quiet-hours start (default 4)")
     return p.parse_args(argv)
 
 

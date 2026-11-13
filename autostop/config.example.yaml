@@ -9,6 +9,8 @@ run_interval_minutes: 30       # match the CronJob schedule; used to avoid repea
 quiet_hours_tolerance_minutes: 5
 ignore_required_stop_day: false # true: ignore template required stop day/max_deadline, use ONLY max_running_hours
 max_running_hours: 0           # allowed running time since start build (e.g. 336 = 14 days); required when above is true
+stop_only_in_quiet_hours: false # action=stop: only stop while the workspace OWNER is inside their quiet hours
+quiet_hours_window_hours: 4    # quiet-hours window length after the owner's quiet-hours start (owner's timezone)
 output: "table"                # table | json
 notify:
   template_owner: true         # summary to the template creator
