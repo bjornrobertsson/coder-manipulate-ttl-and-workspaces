@@ -47,8 +47,9 @@ def workspace(wid="ws-1", deadline=None, max_deadline=None, last_used=NOW, statu
 
 
 class FakeClient:
-    def __init__(self, tpl, workspaces, fail_stop=False):
+    def __init__(self, tpl, workspaces, fail_stop=False, qh=None):
         self.tpl, self.ws, self.fail_stop = tpl, workspaces, fail_stop
+        self.qh = qh or {}  # owner_id -> quiet-hours response (default QH_LONDON)
         self.stopped = []
 
     def find_template(self, name, org=""):
@@ -63,7 +64,7 @@ class FakeClient:
         return {"email": uid + "@example.com"}
 
     def quiet_hours(self, uid):
-        return QH_LONDON
+        return self.qh.get(uid, QH_LONDON)
 
     def stop_workspace(self, wid):
         if self.fail_stop:
@@ -323,6 +324,169 @@ def test_cli_flags_parse():
     a = am.parse_args(["--ignore-required-stop-day", "--max-running-hours", "336"])
     assert a.ignore_required_stop_day is True and a.max_running_hours == 336.0
     assert am.parse_args([]).ignore_required_stop_day is None
+
+
+# ------------------------------------------------------------------ stop_only_in_quiet_hours
+
+def test_quiet_hours_window_inside_and_outside():
+    qh = {"time": "14:00", "timezone": "UTC"}  # NOW is 15:00 UTC
+    inside, nxt, start = am.quiet_hours_window(qh, NOW, 4)
+    assert inside is True and nxt is None and start.hour == 14
+    inside, nxt, _ = am.quiet_hours_window(qh, NOW, 0.5)  # 14:00-14:30 already over
+    assert inside is False and nxt == dt.datetime(2026, 11, 11, 14, 0, tzinfo=am.ZoneInfo("UTC"))
+    inside, nxt, _ = am.quiet_hours_window({"time": "18:00", "timezone": "UTC"}, NOW, 4)
+    assert inside is False and nxt.astimezone(UTC) == dt.datetime(2026, 11, 10, 18, 0, tzinfo=UTC)
+
+
+def test_quiet_hours_window_crosses_midnight():
+    qh = {"time": "22:00", "timezone": "UTC"}
+    assert am.quiet_hours_window(qh, dt.datetime(2026, 11, 11, 1, 30, tzinfo=UTC), 4)[0] is True
+    assert am.quiet_hours_window(qh, dt.datetime(2026, 11, 11, 2, 30, tzinfo=UTC), 4)[0] is False
+
+
+def test_quiet_hours_window_uses_owner_timezone():
+    # Sydney is UTC+11 in November: 02:00 local == 15:00 UTC the previous day
+    qh = {"time": "02:00", "timezone": "Australia/Sydney"}
+    assert am.quiet_hours_window(qh, NOW, 1)[0] is True
+    assert am.quiet_hours_window({"time": "02:00", "timezone": "Europe/London"}, NOW, 1)[0] is False
+
+
+def test_quiet_hours_window_unknown():
+    assert am.quiet_hours_window(None, NOW, 4) == (None, None, None)
+    assert am.quiet_hours_window({"time": "", "timezone": "UTC"}, NOW, 4)[0] is None
+    assert am.quiet_hours_window({"time": "02:00", "timezone": "Not/AZone"}, NOW, 4)[0] is None
+
+
+def qcfg(**over):
+    base = dict(action="stop", dry_run=False, ignore_required_stop_day=True, max_running_hours=72,
+                stop_only_in_quiet_hours=True, quiet_hours_window_hours=4)
+    base.update(over)
+    return cfg(**base)
+
+
+def test_run_stops_only_owner_inside_quiet_hours(capsys):
+    just_over = NOW - dt.timedelta(hours=72, minutes=10)  # crossed the interval this run -> owner is told
+    a = workspace("inside", started=just_over)
+    b = workspace("outside", started=just_over)
+    fc = FakeClient(template(days=()), [a, b], qh={
+        "user-inside": {"time": "14:30", "timezone": "UTC"},    # 14:30-18:30, NOW 15:00 -> inside
+        "user-outside": {"time": "02:00", "timezone": "UTC"},   # 02:00-06:00 -> outside
+    })
+    assert am.run(qcfg(), fc, NOW) == 0
+    out = capsys.readouterr().out
+    assert fc.stopped == ["inside"]
+    assert "deferred:quiet-hours Wed 2026-11-11 02:00 UTC" in out
+    assert "will stop in your quiet hours (Wed 2026-11-11 02:00 UTC)" in out
+    assert "The stop was made during your quiet hours." in out
+
+
+def test_run_unknown_quiet_hours_is_deferred_not_stopped(capsys):
+    fc = FakeClient(template(days=()), [workspace(started=NOW - dt.timedelta(hours=100))],
+                    qh={"user-ws-1": None})
+    assert am.run(qcfg(), fc, NOW) == 0
+    assert fc.stopped == []
+    assert "deferred:quiet-hours-unknown" in capsys.readouterr().out
+
+
+def test_run_idle_mode_respects_quiet_hours():
+    idle = workspace("idle", last_used=NOW - dt.timedelta(days=3))
+    c = cfg(action="stop", dry_run=False, stop_only_in_quiet_hours=True, quiet_hours_window_hours=4)
+    fc = FakeClient(template(days=()), [idle], qh={"user-idle": {"time": "02:00", "timezone": "UTC"}})
+    am.run(c, fc, NOW)
+    assert fc.stopped == []
+    fc = FakeClient(template(days=()), [idle], qh={"user-idle": {"time": "13:00", "timezone": "UTC"}})
+    am.run(c, fc, NOW)
+    assert fc.stopped == ["idle"]
+
+
+def test_deferred_only_does_not_resend_template_summary(capsys):
+    # Over the interval long ago (dedupe: owner already told), still outside quiet hours:
+    # no owner mail and no template-owner summary on this run.
+    ws = workspace(started=NOW - dt.timedelta(hours=100))
+    fc = FakeClient(template(days=()), [ws], qh={"user-ws-1": {"time": "02:00", "timezone": "UTC"}})
+    am.run(qcfg(), fc, NOW)
+    out = capsys.readouterr().out
+    assert "EMAIL" not in out and "deferred:quiet-hours" in out
+
+
+def test_quiet_hours_flag_without_stop_action_changes_nothing(capsys):
+    ws = workspace(started=NOW - dt.timedelta(hours=100))
+    fc = FakeClient(template(days=()), [ws], qh={"user-ws-1": {"time": "02:00", "timezone": "UTC"}})
+    am.run(qcfg(action="report_only"), fc, NOW)
+    assert fc.stopped == [] and "deferred" not in capsys.readouterr().out
+
+
+def _three_owners():
+    old = NOW - dt.timedelta(hours=100)
+    ws = [workspace("inside", started=old), workspace("outside", started=old), workspace("unknown", started=old)]
+    qh = {"user-inside": {"time": "14:30", "timezone": "UTC"},
+          "user-outside": {"time": "02:00", "timezone": "UTC"},
+          "user-unknown": None}
+    return ws, qh
+
+
+def test_force_stops_unknown_but_not_known_outside(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    assert am.run(qcfg(force=True), fc, NOW) == 0
+    out = capsys.readouterr().out
+    assert sorted(fc.stopped) == ["inside", "unknown"]
+    assert "stopped (force: quiet hours unknown)" in out
+    assert "deferred:quiet-hours Wed 2026-11-11 02:00 UTC" in out  # known-outside still waits
+
+
+def test_force_all_stops_everything_qualifying(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    assert am.run(qcfg(force_all=True), fc, NOW) == 0
+    out = capsys.readouterr().out
+    assert sorted(fc.stopped) == ["inside", "outside", "unknown"]
+    assert "stopped (force-all: outside quiet hours)" in out
+    assert "stopped (force-all: quiet hours unknown)" in out
+    assert "outside your quiet hours by administrator override" in out
+
+
+def test_force_all_dry_run_labels_and_does_not_stop(capsys):
+    ws, qh = _three_owners()
+    fc = FakeClient(template(days=()), ws, qh=qh)
+    am.run(qcfg(force_all=True, dry_run=True), fc, NOW)
+    assert fc.stopped == [] and "would-stop (force-all: outside quiet hours)" in capsys.readouterr().out
+
+
+def test_force_never_stops_non_qualifying():
+    young = workspace("young", started=NOW - dt.timedelta(hours=1))  # under max_running_hours
+    fc = FakeClient(template(days=()), [young], qh={"user-young": None})
+    am.run(qcfg(force_all=True), fc, NOW)
+    assert fc.stopped == []
+
+
+def test_force_flags_cli_and_warning(monkeypatch, capsys):
+    a = am.parse_args(["--force", "--force-all"])
+    assert a.force is True and a.force_all is True
+    monkeypatch.setenv("CODER_URL", "https://c")
+    monkeypatch.setenv("CODER_TOKEN", "t")
+    c = am.load_config("/nonexistent", {"template": "t", "force": True})
+    assert c["force"] is True and c["force_all"] is False
+    assert "no effect" in capsys.readouterr().err
+
+
+def test_quiet_hours_config_validation(monkeypatch, capsys):
+    monkeypatch.setenv("CODER_URL", "https://c")
+    monkeypatch.setenv("CODER_TOKEN", "t")
+    base = {"template": "t", "stop_only_in_quiet_hours": True}
+    with pytest.raises(am.ConfigError, match="quiet_hours_window_hours"):
+        am.load_config("/nonexistent", dict(base, quiet_hours_window_hours=0))
+    with pytest.raises(am.ConfigError, match="quiet_hours_window_hours"):
+        am.load_config("/nonexistent", dict(base, quiet_hours_window_hours=25))
+    c = am.load_config("/nonexistent", dict(base, quiet_hours_window_hours=0.25))  # 15 min < 30 min interval
+    assert c["stop_only_in_quiet_hours"] is True and c["quiet_hours_window_hours"] == 0.25
+    assert "may never land inside" in capsys.readouterr().err
+
+
+def test_quiet_hours_cli_flags():
+    a = am.parse_args(["--stop-only-in-quiet-hours", "--quiet-hours-window-hours", "3"])
+    assert a.stop_only_in_quiet_hours is True and a.quiet_hours_window_hours == 3.0
+    assert am.parse_args([]).stop_only_in_quiet_hours is None
 
 
 # ------------------------------------------------------------------ config
